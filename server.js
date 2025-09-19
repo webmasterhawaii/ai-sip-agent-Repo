@@ -3,18 +3,27 @@ import express from 'express';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const WEBHOOK_SECRET = process.env.OPENAI_WEBHOOK_SECRET;
 
 // Health check
-app.get('/', (_, res) => res.send('AI SIP Agent (SIP Connector) ✅'));
+app.get('/', (_, res) => res.send('AI SIP Agent (SIP Connector + Tools) ✅'));
 
-// OpenAI calls this webhook when a new SIP call arrives
-app.post('/session', express.json(), (req, res) => {
-  console.log('New SIP session request from OpenAI');
+// Middleware to verify OpenAI webhook secret
+function verifyOpenAI(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
+    return res.status(401).send('Unauthorized');
+  }
+  next();
+}
 
-  // Define agent behavior + voice
+// SIP Connector webhook
+app.post('/session', express.json(), verifyOpenAI, (req, res) => {
+  console.log('📞 Verified SIP call from OpenAI');
+
   res.json({
-    instructions: "You are an AI voice assistant. Answer naturally and helpfully.",
-    voice: "verse", // OpenAI built-in voice
+    instructions: "You are a friendly AI voice agent. Greet the caller and tell them this line: 'Hello, you’re connected to AI.'",
+    voice: "verse",
     modalities: ["text", "audio"],
     tools: [
       {
@@ -25,7 +34,7 @@ app.post('/session', express.json(), (req, res) => {
       {
         type: "function",
         name: "trigger_n8n_workflow",
-        description: "Trigger an n8n automation workflow",
+        description: "Trigger an n8n workflow with structured data",
         parameters: {
           workflow_id: { type: "string" },
           payload: { type: "object" }
