@@ -9,13 +9,13 @@ expressWs(app);
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // e.g. ai-voice-agent.up.railway.app
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // e.g. ai-sip-agent-repo-production.up.railway.app
 
 // Health check
 app.get("/", (_, res) => res.send("AI Voice Agent (Twilio Media Streams ↔ OpenAI Realtime) ✅"));
 
 // Twilio webhook to start Media Stream
-app.post("/voice", (req, res) => {
+app.post("/incoming-call", (req, res) => {
   res.type("text/xml");
   res.send(`
     <Response>
@@ -46,7 +46,7 @@ app.ws("/media", (twilioWs) => {
     rt.send(JSON.stringify({
       type: "session.update",
       session: {
-        instructions: "You are a helpful AI voice assistant.",
+        instructions: "You are a helpful AI voice assistant. Greet the caller politely and keep the conversation flowing.",
         voice: "verse",
         modalities: ["text", "audio"]
       }
@@ -62,14 +62,17 @@ app.ws("/media", (twilioWs) => {
   rt.on("message", async (buf) => {
     const evt = JSON.parse(buf.toString());
 
-    // Handle audio
+    // Handle audio back to Twilio
     if (evt.type === "response.output_audio.delta" && evt.audio) {
       if (twilioWs.readyState === WebSocket.OPEN) {
-        twilioWs.send(JSON.stringify({ event: "media", media: { payload: evt.audio } }));
+        twilioWs.send(JSON.stringify({
+          event: "media",
+          media: { payload: evt.audio }
+        }));
       }
     }
 
-    // Example: handle tool calls (stubbed)
+    // Handle tool calls (stubbed for now)
     if (evt.type === "response.function_call") {
       console.log("🔧 Tool request:", evt);
 
