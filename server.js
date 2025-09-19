@@ -1,70 +1,40 @@
-import express from "express";
-import expressWs from "express-ws";
-import { WebSocket } from "ws";
+import 'dotenv/config';
+import express from 'express';
 
 const app = express();
-expressWs(app);
-
 const PORT = process.env.PORT || 3000;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Health check
-app.get("/", (_, res) => res.send("AI SIP Agent is running ✅"));
+app.get('/', (_, res) => res.send('AI SIP Agent (SIP Connector) ✅'));
 
-// Twilio SIP webhook (responds with TwiML to stream audio)
-app.post("/sip", (req, res) => {
-  console.log("Incoming SIP call");
-  res.type("text/xml");
-  res.send(`
-    <Response>
-      <Connect>
-        <Stream url="wss://${process.env.RAILWAY_STATIC_URL}/media" />
-      </Connect>
-    </Response>
-  `);
-});
+// OpenAI calls this webhook when a new SIP call arrives
+app.post('/session', express.json(), (req, res) => {
+  console.log('New SIP session request from OpenAI');
 
-// Media WebSocket from Twilio
-app.ws("/media", (ws, req) => {
-  console.log("Twilio media stream started");
-
-  // Connect to OpenAI Realtime API
-  const openaiWs = new WebSocket(
-    "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12",
-    {
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "OpenAI-Beta": "realtime=v1",
+  // Define agent behavior + voice
+  res.json({
+    instructions: "You are an AI voice assistant. Answer naturally and helpfully.",
+    voice: "verse", // OpenAI built-in voice
+    modalities: ["text", "audio"],
+    tools: [
+      {
+        type: "web_search",
+        name: "search",
+        description: "Search the web for recent information"
       },
-    }
-  );
-
-  // Pipe Twilio → OpenAI
-  ws.on("message", (msg) => {
-    if (openaiWs.readyState === WebSocket.OPEN) {
-      openaiWs.send(msg);
-    }
-  });
-
-  // Pipe OpenAI → Twilio
-  openaiWs.on("message", (msg) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(msg);
-    }
-  });
-
-  ws.on("close", () => {
-    console.log("Twilio media stream closed");
-    openaiWs.close();
-  });
-
-  openaiWs.on("close", () => {
-    console.log("OpenAI realtime closed");
-    ws.close();
+      {
+        type: "function",
+        name: "trigger_n8n_workflow",
+        description: "Trigger an n8n automation workflow",
+        parameters: {
+          workflow_id: { type: "string" },
+          payload: { type: "object" }
+        }
+      }
+    ]
   });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
