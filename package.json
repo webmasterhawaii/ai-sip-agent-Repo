@@ -8,8 +8,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "express-ws": "^5.0.2",
-    "ws": "^8.18.0",
-    "node-fetch": "^3.3.2"
+    "dotenv": "^16.4.5"
   }
 }
